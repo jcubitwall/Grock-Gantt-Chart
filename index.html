@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cubit Home — Interactive Build Gantt</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --card: #ffffff;
+      --border: #d8dde6;
+      --text: #1a1d26;
+      --muted: #5c6578;
+      --accent: #2563eb;
+      --header-h: 64px;
+      --sidebar-w: 380px;
+      --row-h: 52px;
+      --day-w: 42px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      height: var(--header-h);
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      padding: 0 20px;
+      gap: 24px;
+      flex-shrink: 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,.04);
+    }
+    header h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+    header .sub {
+      font-size: 12px;
+      color: var(--muted);
+      margin-left: -12px;
+    }
+    .config-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+      flex-wrap: wrap;
+    }
+    .config-bar label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    select, input[type="date"], input[type="number"] {
+      height: 32px;
+      padding: 0 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 13px;
+      background: #fff;
+      min-width: 110px;
+    }
+    input[type="number"] { width: 70px; }
+    .btn {
+      height: 32px;
+      padding: 0 14px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background .15s, transform .1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-ghost { background: #eef0f4; color: var(--text); }
+    .btn-ghost:hover { background: #e0e3ea; }
+    .btn-danger { background: #fee2e2; color: #b91c1c; }
+    .btn-danger:hover { background: #fecaca; }
+
+    /* ── Main layout ── */
+    .main {
+      flex: 1;
+      display: flex;
+      overflow: hidden;
+    }
+
+    /* ── Left panel (tasks) ── */
+    .left-panel {
+      width: var(--sidebar-w);
+      background: var(--card);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+    .left-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .task-list {
+      flex: 1;
+      overflow-y: auto;
+    }
+    .task-row {
+      display: flex;
+      align-items: stretch;
+      min-height: var(--row-h);
+      border-bottom: 1px solid #eef0f4;
+      position: relative;
+    }
+    .task-row:hover { background: #f8f9fb; }
+    .task-row.selected { background: #eff6ff; }
+    .phase-dot {
+      width: 6px;
+      flex-shrink: 0;
+    }
+    .task-content {
+      flex: 1;
+      padding: 8px 12px 8px 10px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 2px;
+      min-width: 0;
+    }
+    .task-title {
+      font-size: 13px;
+      font-weight: 600;
+      line-height: 1.3;
+      outline: none;
+      word-break: break-word;
+    }
+    .task-title[contenteditable="true"]:focus {
+      background: #fff;
+      box-shadow: 0 0 0 2px var(--accent);
+      border-radius: 4px;
+      padding: 2px 4px;
+    }
+    .task-meta {
+      font-size: 11px;
+      color: var(--muted);
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .task-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding-right: 8px;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    .task-row:hover .task-actions { opacity: 1; }
+    .icon-btn {
+      width: 26px;
+      height: 26px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon-btn:hover { background: #e0e3ea; color: var(--text); }
+
+    /* ── Toolbar for rich text ── */
+    .rte-toolbar {
+      display: none;
+      position: absolute;
+      top: -36px;
+      left: 10px;
+      background: #1e293b;
+      border-radius: 6px;
+      padding: 4px;
+      gap: 2px;
+      z-index: 50;
+      box-shadow: 0 4px 12px rgba(0,0,0,.2);
+    }
+    .rte-toolbar.visible { display: flex; }
+    .rte-btn {
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 4px;
+      background: transparent;
+      color: #e2e8f0;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .rte-btn:hover { background: #334155; }
+    .rte-btn.active { background: var(--accent); color: #fff; }
+    .rte-color {
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    /* ── Gantt area ── */
+    .gantt-wrap {
+      flex: 1;
+      overflow: auto;
+      position: relative;
+      background: #fafbfc;
+    }
+    .gantt-inner {
+      position: relative;
+      min-width: max-content;
+    }
+    .day-headers {
+      display: flex;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      height: 48px;
+    }
+    .day-header {
+      width: var(--day-w);
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 600;
+      border-right: 1px solid #eef0f4;
+      color: var(--muted);
+    }
+    .day-header .date {
+      font-size: 10px;
+      font-weight: 500;
+      color: #94a3b8;
+    }
+    .day-header.weekend { background: #f8fafc; }
+    .day-header.today { background: #eff6ff; color: var(--accent); }
+
+    .gantt-rows {
+      position: relative;
+    }
+    .gantt-row {
+      height: var(--row-h);
+      border-bottom: 1px solid #eef0f4;
+      position: relative;
+      display: flex;
+    }
+    .gantt-row:hover { background: rgba(37,99,235,.03); }
+    .day-cell {
+      width: var(--day-w);
+      flex-shrink: 0;
+      border-right: 1px solid #f1f3f6;
+      height: 100%;
+    }
+    .day-cell.weekend { background: #f8fafc; }
+
+    /* Bars */
+    .bar {
+      position: absolute;
+      top: 10px;
+      height: 32px;
+      border-radius: 6px;
+      cursor: grab;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      box-shadow: 0 1px 3px rgba(0,0,0,.15);
+      user-select: none;
+      z-index: 5;
+      transition: box-shadow .15s;
+      min-width: calc(var(--day-w) - 4px);
+    }
+    .bar:hover { box-shadow: 0 3px 8px rgba(0,0,0,.2); }
+    .bar.dragging { cursor: grabbing; z-index: 30; opacity: 0.9; }
+    .bar .label {
+      pointer-events: none;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding: 0 8px;
+    }
+    .bar-handle {
+      position: absolute;
+      top: 0;
+      width: 10px;
+      height: 100%;
+      cursor: ew-resize;
+      z-index: 10;
+    }
+    .bar-handle.left { left: 0; border-radius: 6px 0 0 6px; }
+    .bar-handle.right { right: 0; border-radius: 0 6px 6px 0; }
+    .bar-handle:hover { background: rgba(255,255,255,.25); }
+
+    /* Phase colors */
+    .phase-admin { background: #3b82f6; }
+    .phase-pre { background: #f59e0b; }
+    .phase-cut { background: #14b8a6; }
+    .phase-cabinetry { background: #22c55e; }
+    .phase-mep { background: #a3e635; color: #1a1d26 !important; }
+    .phase-inspect { background: #ef4444; }
+
+    /* Legend */
+    .legend {
+      display: flex;
+      gap: 16px;
+      padding: 10px 20px;
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      font-size: 12px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .legend-swatch {
+      width: 14px;
+      height: 14px;
+      border-radius: 3px;
+    }
+
+    /* Modal / Settings */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,.45);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal {
+      background: #fff;
+      border-radius: 12px;
+      width: 520px;
+      max-width: 95vw;
+      max-height: 85vh;
+      overflow: auto;
+      box-shadow: 0 20px 40px rgba(0,0,0,.2);
+    }
+    .modal-header {
+      padding: 18px 22px;
+      border-bottom: 1px solid var(--border);
+      font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .modal-body { padding: 20px 22px; }
+    .modal-footer {
+      padding: 14px 22px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .form-row {
+      margin-bottom: 14px;
+    }
+    .form-row label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 4px;
+      color: var(--muted);
+    }
+    .form-row input, .form-row select, .form-row textarea {
+      width: 100%;
+      height: 36px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    .form-row textarea { height: 80px; padding: 8px 12px; resize: vertical; }
+    .scale-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+    .scale-table th, .scale-table td {
+      border: 1px solid var(--border);
+      padding: 6px 8px;
+      text-align: center;
+    }
+    .scale-table th { background: #f1f5f9; font-weight: 600; }
+    .scale-table input { width: 50px; height: 28px; text-align: center; }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: #1e293b;
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      z-index: 200;
+      opacity: 0;
+      transform: translateY(12px);
+      transition: all .25s;
+      pointer-events: none;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+
+    /* Empty state */
+    .empty-hint {
+      padding: 40px 20px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>CUBIT HOME</h1>
+    <div class="sub">Interactive Build Gantt · Modular Pods</div>
+  </div>
+
+  <div class="config-bar">
+    <label>Pod Size
+      <select id="podSize">
+        <option value="8x8">8 × 8</option>
+        <option value="8x16" selected>8 × 16</option>
+        <option value="8x24">8 × 24</option>
+      </select>
+    </label>
+    <label>Quantity
+      <input type="number" id="podQty" value="1" min="1" max="20" />
+    </label>
+    <label>Complexity
+      <select id="complexity">
+        <option value="space">Space (minimal)</option>
+        <option value="living" selected>Bedroom / Living</option>
+        <option value="bath">Bath / Kitchen</option>
+      </select>
+    </label>
+    <label>Start Date
+      <input type="date" id="startDate" />
+    </label>
+    <button class="btn btn-primary" id="btnApply">Apply & Recalc</button>
+    <button class="btn btn-ghost" id="btnTemplates">Task Templates</button>
+    <button class="btn btn-ghost" id="btnAddTask">+ Task</button>
+    <button class="btn btn-ghost" id="btnExport">Export JSON</button>
+    <button class="btn btn-ghost" id="btnPrint">Print / PDF</button>
+  </div>
+</header>
+
+<div class="main">
+  <!-- Left: editable tasks -->
+  <div class="left-panel">
+    <div class="left-header">
+      <span>Task / Responsibility</span>
+      <span id="totalDaysLabel" style="font-weight:600;color:var(--accent)"></span>
+    </div>
+    <div class="task-list" id="taskList"></div>
+  </div>
+
+  <!-- Right: Gantt -->
+  <div class="gantt-wrap" id="ganttWrap">
+    <div class="gantt-inner" id="ganttInner">
+      <div class="day-headers" id="dayHeaders"></div>
+      <div class="gantt-rows" id="ganttRows"></div>
+    </div>
+  </div>
+</div>
+
+<div class="legend" id="legend">
+  <div class="legend-item"><div class="legend-swatch phase-admin"></div> Admin & Client</div>
+  <div class="legend-item"><div class="legend-swatch phase-pre"></div> Pre-Production</div>
+  <div class="legend-item"><div class="legend-swatch phase-cut"></div> Cutting & Assembly</div>
+  <div class="legend-item"><div class="legend-swatch phase-cabinetry"></div> Cabinetry & Finishing</div>
+  <div class="legend-item"><div class="legend-swatch phase-mep"></div> MEP</div>
+  <div class="legend-item"><div class="legend-swatch phase-inspect"></div> Inspection & QC</div>
+</div>
+
+<!-- Templates Modal -->
+<div class="modal-overlay" id="templatesModal">
+  <div class="modal">
+    <div class="modal-header">
+      Duration Scale Factors
+      <button class="icon-btn" id="closeTemplates">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        Base durations are for an <strong>8×16</strong> pod with <strong>Bedroom/Living</strong> complexity.
+        Adjust multipliers below. Changes apply when you click “Apply & Recalc”.
+      </p>
+      <table class="scale-table">
+        <thead>
+          <tr>
+            <th>Factor</th>
+            <th>8×8</th>
+            <th>8×16</th>
+            <th>8×24</th>
+            <th>Space</th>
+            <th>Living</th>
+            <th>Bath/Kitchen</th>
+          </tr>
+        </thead>
+        <tbody id="scaleTableBody"></tbody>
+      </table>
+      <p style="font-size:12px;color:var(--muted);margin-top:12px">
+        Final duration = base × sizeMult × complexityMult × quantity (rounded, min 1 day).
+        Some tasks (e.g. client meeting, inspections) ignore quantity or complexity — controlled per task.
+      </p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" id="resetScales">Reset Defaults</button>
+      <button class="btn btn-primary" id="saveScales">Save Scales</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Task Modal -->
+<div class="modal-overlay" id="taskModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span id="taskModalTitle">Add Task</span>
+      <button class="icon-btn" id="closeTaskModal">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <label>Task Name</label>
+        <input type="text" id="taskName" placeholder="e.g. SIP Pod Part Cutting" />
+      </div>
+      <div class="form-row">
+        <label>Phase</label>
+        <select id="taskPhase">
+          <option value="admin">Admin & Client</option>
+          <option value="pre">Pre-Production</option>
+          <option value="cut">Cutting & Assembly</option>
+          <option value="cabinetry">Cabinetry & Finishing</option>
+          <option value="mep">MEP</option>
+          <option value="inspect">Inspection & QC</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Base Duration (days) — for 8×16 / Living</label>
+        <input type="number" id="taskBase" min="1" max="30" value="1" />
+      </div>
+      <div class="form-row">
+        <label>Lead / Notes (optional)</label>
+        <input type="text" id="taskLead" placeholder="Lead: Joshua · Aid: …" />
+      </div>
+      <div class="form-row" style="display:flex;gap:16px">
+        <label style="flex:1"><input type="checkbox" id="taskScaleSize" checked /> Scale with pod size</label>
+        <label style="flex:1"><input type="checkbox" id="taskScaleComplexity" checked /> Scale with complexity</label>
+        <label style="flex:1"><input type="checkbox" id="taskScaleQty" /> Scale with quantity</label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger" id="deleteTaskBtn" style="margin-right:auto;display:none">Delete</button>
+      <button class="btn btn-ghost" id="cancelTask">Cancel</button>
+      <button class="btn btn-primary" id="saveTask">Save Task</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   CUBIT HOME — Interactive Gantt Chart
+   Pure HTML/JS/CSS · GitHub-Pages ready
+   ═══════════════════════════════════════════════════════════ */
+
+const DAY_W = 42;
+const PHASE_CLASS = {
+  admin: 'phase-admin',
+  pre: 'phase-pre',
+  cut: 'phase-cut',
+  cabinetry: 'phase-cabinetry',
+  mep: 'phase-mep',
+  inspect: 'phase-inspect'
+};
+const PHASE_COLOR = {
+  admin: '#3b82f6',
+  pre: '#f59e0b',
+  cut: '#14b8a6',
+  cabinetry: '#22c55e',
+  mep: '#a3e635',
+  inspect: '#ef4444'
+};
+
+// Default scale multipliers
+let scales = {
+  size: { '8x8': 0.65, '8x16': 1.0, '8x24': 1.45 },
+  complexity: { space: 0.7, living: 1.0, bath: 1.55 }
+};
+
+// Default task template (base = 8×16 + living)
+const DEFAULT_TASKS = [
+  { id: 1,  name: 'Client Meeting / Contract Signing / Deposit Receipt', phase: 'admin', base: 1, lead: 'Lead: Shawn Bigelow', scaleSize: false, scaleComplexity: false, scaleQty: false, start: 0, duration: 1 },
+  { id: 2,  name: 'Pre-Production\n• OSB squaring\n• SIP production\n• Stud bevelling\n• ACP critter guard cutout\n• ACP roof cut out', phase: 'pre', base: 2, lead: '', scaleSize: true, scaleComplexity: false, scaleQty: true, start: 0, duration: 2 },
+  { id: 3,  name: 'Step 1 — Pre-Production Team Meeting & Project Compilation', phase: 'pre', base: 2, lead: 'Lead: Joshua / Brad / Irene / Shawn', scaleSize: false, scaleComplexity: false, scaleQty: false, start: 1, duration: 2 },
+  { id: 4,  name: 'SIP Pod Part Cutting', phase: 'cut', base: 1, lead: 'Lead: Joshua · Aid: Jaden, Mark, Jed, Kian', scaleSize: true, scaleComplexity: false, scaleQty: true, start: 2, duration: 1 },
+  { id: 5,  name: 'Box Construction / Butyl / Window & Door Install', phase: 'cut', base: 2, lead: 'Lead: Joshua · Aid: Kian, Jed, Jaden, Mark', scaleSize: true, scaleComplexity: false, scaleQty: true, start: 3, duration: 2 },
+  { id: 6,  name: 'Cabinet & Interior Wall Panel Production\n• Cabinet cutting & assembly\n• Door edgebanding\n• Window casement assembly\n• Wall & ceiling panel oiling\n• Wall & ceiling panel install', phase: 'cabinetry', base: 4, lead: '', scaleSize: true, scaleComplexity: true, scaleQty: true, start: 3, duration: 4 },
+  { id: 7,  name: 'Siding Pack Order', phase: 'pre', base: 1, lead: 'Lead: Joshua', scaleSize: false, scaleComplexity: false, scaleQty: false, start: 5, duration: 1 },
+  { id: 8,  name: 'Wiring', phase: 'mep', base: 1, lead: '', scaleSize: true, scaleComplexity: true, scaleQty: true, start: 6, duration: 1 },
+  { id: 9,  name: 'Compression Seal Install', phase: 'cut', base: 1, lead: '', scaleSize: true, scaleComplexity: false, scaleQty: true, start: 6, duration: 1 },
+  { id: 10, name: 'Plumbing', phase: 'mep', base: 1, lead: '', scaleSize: true, scaleComplexity: true, scaleQty: true, start: 6, duration: 1 },
+  { id: 11, name: 'Quality & Municipal Inspections', phase: 'inspect', base: 1, lead: 'Lead: Heinrich', scaleSize: false, scaleComplexity: false, scaleQty: false, start: 7, duration: 1 },
+  { id: 12, name: 'Roof SIP & Butyl Install', phase: 'cut', base: 2, lead: 'Lead: Joshua · Aid: Jed, Kian, Jaden', scaleSize: true, scaleComplexity: false, scaleQty: true, start: 7, duration: 2 },
+  { id: 13, name: 'Roof Trim, Roof ACP & Siding Install', phase: 'cut', base: 2, lead: 'Lead: Jed · Aid: Jaden, Kian, Joshua', scaleSize: true, scaleComplexity: false, scaleQty: true, start: 9, duration: 2 },
+  { id: 14, name: 'Cabinet & Fixed Wardrobe Install', phase: 'cabinetry', base: 2, lead: 'Lead: Brad', scaleSize: true, scaleComplexity: true, scaleQty: true, start: 9, duration: 2 },
+  { id: 15, name: 'Flooring & Baseboard Install', phase: 'cabinetry', base: 2, lead: '', scaleSize: true, scaleComplexity: true, scaleQty: true, start: 11, duration: 2 },
+  { id: 16, name: 'Final Quality Inspection', phase: 'inspect', base: 1, lead: 'Lead: Heinrich', scaleSize: false, scaleComplexity: false, scaleQty: false, start: 14, duration: 1 }
+];
+
+let tasks = JSON.parse(JSON.stringify(DEFAULT_TASKS));
+let nextId = 17;
+let editingTaskId = null;
+let dragState = null;
+
+// ── Persistence ──
+function saveState() {
+  const state = {
+    tasks,
+    scales,
+    podSize: document.getElementById('podSize').value,
+    podQty: document.getElementById('podQty').value,
+    complexity: document.getElementById('complexity').value,
+    startDate: document.getElementById('startDate').value
+  };
+  localStorage.setItem('cubit-gantt', JSON.stringify(state));
+}
+
+function loadState() {
+  try {
+    const raw = localStorage.getItem('cubit-gantt');
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s.tasks) tasks = s.tasks;
+    if (s.scales) scales = s.scales;
+    if (s.podSize) document.getElementById('podSize').value = s.podSize;
+    if (s.podQty) document.getElementById('podQty').value = s.podQty;
+    if (s.complexity) document.getElementById('complexity').value = s.complexity;
+    if (s.startDate) document.getElementById('startDate').value = s.startDate;
+    nextId = Math.max(...tasks.map(t => t.id), 0) + 1;
+  } catch (e) {}
+}
+
+// ── Date helpers ──
+function parseDate(str) {
+  if (!str) return new Date();
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function formatDate(d) {
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+function addDays(date, n) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+function isWeekend(d) {
+  const day = d.getDay();
+  return day === 0 || day === 6;
+}
+
+// ── Duration calculation ──
+function calcDuration(task) {
+  let d = task.base;
+  const size = document.getElementById('podSize').value;
+  const cplx = document.getElementById('complexity').value;
+  const qty = Math.max(1, parseInt(document.getElementById('podQty').value, 10) || 1);
+
+  if (task.scaleSize) d *= scales.size[size] || 1;
+  if (task.scaleComplexity) d *= scales.complexity[cplx] || 1;
+  if (task.scaleQty) d *= Math.sqrt(qty); // gentle scaling with qty (not linear)
+  return Math.max(1, Math.round(d));
+}
+
+function recalcAllDurations(preserveStarts = false) {
+  // Recompute durations from base + scales
+  tasks.forEach(t => {
+    t.duration = calcDuration(t);
+  });
+
+  if (!preserveStarts) {
+    // Simple sequential packing: each task starts after the previous one finishes
+    // (except we keep relative offsets loosely; for full auto we can chain)
+    // Better: keep user-set starts, only clamp so duration fits
+  }
+  // Keep existing start days; user can drag to rearrange
+  saveState();
+  render();
+}
+
+// ── Render ──
+function getTotalSpan() {
+  let max = 0;
+  tasks.forEach(t => {
+    max = Math.max(max, t.start + t.duration);
+  });
+  return Math.max(max, 15);
+}
+
+function render() {
+  renderTaskList();
+  renderGantt();
+  const span = getTotalSpan();
+  document.getElementById('totalDaysLabel').textContent = span + ' days';
+}
+
+function renderTaskList() {
+  const list = document.getElementById('taskList');
+  list.innerHTML = '';
+
+  if (tasks.length === 0) {
+    list.innerHTML = '<div class="empty-hint">No tasks. Click “+ Task” or load a template.</div>';
+    return;
+  }
+
+  tasks.forEach((t, idx) => {
+    const row = document.createElement('div');
+    row.className = 'task-row';
+    row.dataset.id = t.id;
+
+    const dot = document.createElement('div');
+    dot.className = 'phase-dot ' + PHASE_CLASS[t.phase];
+    row.appendChild(dot);
+
+    const content = document.createElement('div');
+    content.className = 'task-content';
+
+    const title = document.createElement('div');
+    title.className = 'task-title';
+    title.contentEditable = 'true';
+    title.spellcheck = false;
+    // Support simple rich text: store HTML
+    title.innerHTML = t.nameHtml || t.name.replace(/\n/g, '<br>');
+    title.addEventListener('focus', () => showRte(title, t));
+    title.addEventListener('blur', () => {
+      hideRte();
+      t.nameHtml = title.innerHTML;
+      t.name = title.innerText;
+      saveState();
+    });
+    title.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        title.blur();
+      }
+    });
+    content.appendChild(title);
+
+    const meta = document.createElement('div');
+    meta.className = 'task-meta';
+    meta.innerHTML = `<span>${t.duration} day${t.duration > 1 ? 's' : ''}</span>` +
+      (t.lead ? `<span>${t.lead}</span>` : '');
+    content.appendChild(meta);
+    row.appendChild(content);
+
+    const actions = document.createElement('div');
+    actions.className = 'task-actions';
+    const editBtn = document.createElement('button');
+    editBtn.className = 'icon-btn';
+    editBtn.title = 'Edit task settings';
+    editBtn.textContent = '✎';
+    editBtn.onclick = () => openTaskModal(t);
+    actions.appendChild(editBtn);
+
+    const upBtn = document.createElement('button');
+    upBtn.className = 'icon-btn';
+    upBtn.title = 'Move up';
+    upBtn.textContent = '↑';
+    upBtn.onclick = () => moveTask(idx, -1);
+    actions.appendChild(upBtn);
+
+    const downBtn = document.createElement('button');
+    downBtn.className = 'icon-btn';
+    downBtn.title = 'Move down';
+    downBtn.textContent = '↓';
+    downBtn.onclick = () => moveTask(idx, 1);
+    actions.appendChild(downBtn);
+
+    row.appendChild(actions);
+    list.appendChild(row);
+  });
+}
+
+function renderGantt() {
+  const span = getTotalSpan();
+  const startDate = parseDate(document.getElementById('startDate').value);
+  const headers = document.getElementById('dayHeaders');
+  const rowsEl = document.getElementById('ganttRows');
+  headers.innerHTML = '';
+  rowsEl.innerHTML = '';
+
+  // Day headers
+  for (let i = 0; i < span; i++) {
+    const d = addDays(startDate, i);
+    const cell = document.createElement('div');
+    cell.className = 'day-header' + (isWeekend(d) ? ' weekend' : '');
+    const today = new Date();
+    if (d.toDateString() === today.toDateString()) cell.classList.add('today');
+    cell.innerHTML = `<div>${i + 1}</div><div class="date">${formatDate(d)}</div>`;
+    headers.appendChild(cell);
+  }
+
+  // Rows + bars
+  tasks.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'gantt-row';
+    row.dataset.id = t.id;
+
+    for (let i = 0; i < span; i++) {
+      const d = addDays(startDate, i);
+      const cell = document.createElement('div');
+      cell.className = 'day-cell' + (isWeekend(d) ? ' weekend' : '');
+      row.appendChild(cell);
+    }
+
+    // Bar
+    const bar = document.createElement('div');
+    bar.className = 'bar ' + PHASE_CLASS[t.phase];
+    bar.style.left = (t.start * DAY_W + 2) + 'px';
+    bar.style.width = (t.duration * DAY_W - 4) + 'px';
+    bar.dataset.id = t.id;
+
+    const label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = t.duration + (t.duration === 1 ? ' day' : ' days');
+    bar.appendChild(label);
+
+    // Drag handles
+    const leftH = document.createElement('div');
+    leftH.className = 'bar-handle left';
+    const rightH = document.createElement('div');
+    rightH.className = 'bar-handle right';
+    bar.appendChild(leftH);
+    bar.appendChild(rightH);
+
+    // Interactions
+    bar.addEventListener('mousedown', e => {
+      if (e.target.classList.contains('bar-handle')) return;
+      startDrag(e, t, 'move');
+    });
+    leftH.addEventListener('mousedown', e => startDrag(e, t, 'resize-left'));
+    rightH.addEventListener('mousedown', e => startDrag(e, t, 'resize-right'));
+
+    row.appendChild(bar);
+    rowsEl.appendChild(row);
+  });
+
+  // Set inner width
+  document.getElementById('ganttInner').style.width = (span * DAY_W) + 'px';
+}
+
+// ── Drag logic ──
+function startDrag(e, task, mode) {
+  e.preventDefault();
+  e.stopPropagation();
+  const bar = e.currentTarget.closest('.bar') || e.currentTarget;
+  dragState = {
+    task,
+    mode,
+    startX: e.clientX,
+    origStart: task.start,
+    origDuration: task.duration,
+    bar
+  };
+  bar.classList.add('dragging');
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', endDrag);
+}
+
+function onDrag(e) {
+  if (!dragState) return;
+  const dx = e.clientX - dragState.startX;
+  const dayDelta = Math.round(dx / DAY_W);
+  const t = dragState.task;
+
+  if (dragState.mode === 'move') {
+    t.start = Math.max(0, dragState.origStart + dayDelta);
+  } else if (dragState.mode === 'resize-right') {
+    t.duration = Math.max(1, dragState.origDuration + dayDelta);
+  } else if (dragState.mode === 'resize-left') {
+    const newStart = Math.max(0, dragState.origStart + dayDelta);
+    const end = dragState.origStart + dragState.origDuration;
+    t.duration = Math.max(1, end - newStart);
+    t.start = newStart;
+  }
+
+  // Live update bar position / size
+  dragState.bar.style.left = (t.start * DAY_W + 2) + 'px';
+  dragState.bar.style.width = (t.duration * DAY_W - 4) + 'px';
+  dragState.bar.querySelector('.label').textContent = t.duration + (t.duration === 1 ? ' day' : ' days');
+
+  // Update left meta
+  const meta = document.querySelector(`.task-row[data-id="${t.id}"] .task-meta span`);
+  if (meta) meta.textContent = t.duration + ' day' + (t.duration > 1 ? 's' : '');
+}
+
+function endDrag() {
+  if (!dragState) return;
+  dragState.bar.classList.remove('dragging');
+  // When user resizes, treat the new duration as the new "base" for this size/complexity
+  // so it sticks until they hit Apply again
+  const t = dragState.task;
+  // Optionally update base so Apply doesn't overwrite manual resize:
+  // For now we keep duration as-is (manual override)
+  dragState = null;
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', endDrag);
+  saveState();
+  // Re-render to possibly extend timeline
+  render();
+}
+
+// ── Task CRUD ──
+function moveTask(idx, dir) {
+  const newIdx = idx + dir;
+  if (newIdx < 0 || newIdx >= tasks.length) return;
+  [tasks[idx], tasks[newIdx]] = [tasks[newIdx], tasks[idx]];
+  saveState();
+  render();
+}
+
+function openTaskModal(task = null) {
+  editingTaskId = task ? task.id : null;
+  document.getElementById('taskModalTitle').textContent = task ? 'Edit Task' : 'Add Task';
+  document.getElementById('taskName').value = task ? task.name.split('\n')[0] : '';
+  document.getElementById('taskPhase').value = task ? task.phase : 'cut';
+  document.getElementById('taskBase').value = task ? task.base : 1;
+  document.getElementById('taskLead').value = task ? (task.lead || '') : '';
+  document.getElementById('taskScaleSize').checked = task ? task.scaleSize : true;
+  document.getElementById('taskScaleComplexity').checked = task ? task.scaleComplexity : true;
+  document.getElementById('taskScaleQty').checked = task ? task.scaleQty : false;
+  document.getElementById('deleteTaskBtn').style.display = task ? 'inline-flex' : 'none';
+  document.getElementById('taskModal').classList.add('open');
+}
+
+function saveTaskFromModal() {
+  const name = document.getElementById('taskName').value.trim() || 'New Task';
+  const phase = document.getElementById('taskPhase').value;
+  const base = Math.max(1, parseInt(document.getElementById('taskBase').value, 10) || 1);
+  const lead = document.getElementById('taskLead').value.trim();
+  const scaleSize = document.getElementById('taskScaleSize').checked;
+  const scaleComplexity = document.getElementById('taskScaleComplexity').checked;
+  const scaleQty = document.getElementById('taskScaleQty').checked;
+
+  if (editingTaskId) {
+    const t = tasks.find(x => x.id === editingTaskId);
+    if (t) {
+      t.name = name;
+      t.nameHtml = null;
+      t.phase = phase;
+      t.base = base;
+      t.lead = lead;
+      t.scaleSize = scaleSize;
+      t.scaleComplexity = scaleComplexity;
+      t.scaleQty = scaleQty;
+      t.duration = calcDuration(t);
+    }
+  } else {
+    const lastEnd = tasks.reduce((m, t) => Math.max(m, t.start + t.duration), 0);
+    tasks.push({
+      id: nextId++,
+      name,
+      phase,
+      base,
+      lead,
+      scaleSize,
+      scaleComplexity,
+      scaleQty,
+      start: lastEnd,
+      duration: calcDuration({ base, scaleSize, scaleComplexity, scaleQty })
+    });
+  }
+  document.getElementById('taskModal').classList.remove('open');
+  saveState();
+  render();
+  toast('Task saved');
+}
+
+function deleteCurrentTask() {
+  if (!editingTaskId) return;
+  if (!confirm('Delete this task?')) return;
+  tasks = tasks.filter(t => t.id !== editingTaskId);
+  document.getElementById('taskModal').classList.remove('open');
+  saveState();
+  render();
+  toast('Task deleted');
+}
+
+// ── Rich text toolbar (simple) ──
+let activeRte = null;
+function showRte(el, task) {
+  // Minimal: use browser execCommand via a floating toolbar
+  // For simplicity we just allow contenteditable + basic formatting via keyboard or right-click
+  // Full toolbar can be added; for now keep it lightweight
+}
+function hideRte() {}
+
+// ── Templates / Scales modal ──
+function openTemplates() {
+  const body = document.getElementById('scaleTableBody');
+  body.innerHTML = `
+    <tr>
+      <td>Size Mult</td>
+      <td><input type="number" step="0.05" id="s88" value="${scales.size['8x8']}"></td>
+      <td><input type="number" step="0.05" id="s816" value="${scales.size['8x16']}"></td>
+      <td><input type="number" step="0.05" id="s824" value="${scales.size['8x24']}"></td>
+      <td colspan="3" style="background:#f8fafc"></td>
+    </tr>
+    <tr>
+      <td>Complexity Mult</td>
+      <td colspan="3" style="background:#f8fafc"></td>
+      <td><input type="number" step="0.05" id="cSpace" value="${scales.complexity.space}"></td>
+      <td><input type="number" step="0.05" id="cLiving" value="${scales.complexity.living}"></td>
+      <td><input type="number" step="0.05" id="cBath" value="${scales.complexity.bath}"></td>
+    </tr>
+  `;
+  document.getElementById('templatesModal').classList.add('open');
+}
+
+function saveScales() {
+  scales.size['8x8'] = parseFloat(document.getElementById('s88').value) || 0.65;
+  scales.size['8x16'] = parseFloat(document.getElementById('s816').value) || 1;
+  scales.size['8x24'] = parseFloat(document.getElementById('s824').value) || 1.45;
+  scales.complexity.space = parseFloat(document.getElementById('cSpace').value) || 0.7;
+  scales.complexity.living = parseFloat(document.getElementById('cLiving').value) || 1;
+  scales.complexity.bath = parseFloat(document.getElementById('cBath').value) || 1.55;
+  document.getElementById('templatesModal').classList.remove('open');
+  saveState();
+  toast('Scales saved — click Apply & Recalc to update durations');
+}
+
+function resetScales() {
+  scales = {
+    size: { '8x8': 0.65, '8x16': 1.0, '8x24': 1.45 },
+    complexity: { space: 0.7, living: 1.0, bath: 1.55 }
+  };
+  openTemplates();
+}
+
+// ── Export / Print ──
+function exportJSON() {
+  const data = {
+    project: {
+      podSize: document.getElementById('podSize').value,
+      quantity: document.getElementById('podQty').value,
+      complexity: document.getElementById('complexity').value,
+      startDate: document.getElementById('startDate').value
+    },
+    scales,
+    tasks
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `cubit-gantt-${document.getElementById('podSize').value}-${Date.now()}.json`;
+  a.click();
+  toast('JSON exported');
+}
+
+function printChart() {
+  window.print();
+}
+
+// ── Toast ──
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// ── Wire up ──
+document.getElementById('btnApply').onclick = () => {
+  recalcAllDurations(false);
+  toast('Durations recalculated from size / complexity / qty');
+};
+document.getElementById('btnTemplates').onclick = openTemplates;
+document.getElementById('btnAddTask').onclick = () => openTaskModal(null);
+document.getElementById('btnExport').onclick = exportJSON;
+document.getElementById('btnPrint').onclick = printChart;
+document.getElementById('closeTemplates').onclick = () => document.getElementById('templatesModal').classList.remove('open');
+document.getElementById('saveScales').onclick = saveScales;
+document.getElementById('resetScales').onclick = resetScales;
+document.getElementById('closeTaskModal').onclick = () => document.getElementById('taskModal').classList.remove('open');
+document.getElementById('cancelTask').onclick = () => document.getElementById('taskModal').classList.remove('open');
+document.getElementById('saveTask').onclick = saveTaskFromModal;
+document.getElementById('deleteTaskBtn').onclick = deleteCurrentTask;
+
+// Set default start date to today if empty
+if (!document.getElementById('startDate').value) {
+  const today = new Date();
+  document.getElementById('startDate').value = today.toISOString().slice(0, 10);
+}
+
+// Init
+loadState();
+recalcAllDurations(true);
+render();
+
+// Keyboard shortcut: Ctrl/Cmd+S to save (already auto-saves)
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    saveState();
+    toast('Saved to browser');
+  }
+});
+</script>
+
+<style media="print">
+  header, .legend, .task-actions, .btn { display: none !important; }
+  .left-panel { width: 280px !important; }
+  body { overflow: visible; height: auto; }
+  .main { overflow: visible; }
+  .gantt-wrap { overflow: visible; }
+</style>
+</body>
+</html>
