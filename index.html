@@ -280,7 +280,8 @@
     height:30px;border-right:1px solid var(--line);font-family:var(--font-mono);
   }
   .daycol .dd{font-size:9.5px;color:var(--muted);}
-  .daycol.wk-odd{background:rgba(44,95,138,.05);}
+  .daycol.day-odd{background:rgba(21,24,27,.03);}
+  .daycol.wk-odd{background:rgba(44,95,138,.1);}
   .daycol.weekend{background:var(--weekend);}
 
   .rowcell{position:relative;border-bottom:1px solid var(--line);height:92px;}
@@ -332,14 +333,14 @@
     position:absolute;top:0;bottom:0;width:0;border-left:4px solid #43a047;z-index:4;pointer-events:none;
   }
   #progressLine .progress-label{
-    position:absolute;top:4px;left:6px;background:var(--pill-done);color:#fff;font-family:var(--font-mono);
+    position:absolute;top:34px;left:6px;background:var(--pill-done);color:#fff;font-family:var(--font-mono);
     font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;white-space:nowrap;
   }
   #todayLine{
     position:absolute;top:0;bottom:0;width:0;border-left:4px solid #2f6f9e;z-index:3;pointer-events:none;
   }
   #todayLine .progress-label{
-    position:absolute;top:20px;left:6px;background:var(--pill-incomplete);color:#fff;font-family:var(--font-mono);
+    position:absolute;top:50px;left:6px;background:var(--pill-incomplete);color:#fff;font-family:var(--font-mono);
     font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;white-space:nowrap;
   }
 
@@ -604,7 +605,7 @@
     <button id="btnAddThirdParty" class="editor-only swatch" style="background:#c9791f;" title="Add third-party task" aria-label="Add third-party task"></button>
     <button id="btnAddTodo" class="editor-only swatch" style="background:#c0392b;" title="Add to-do" aria-label="Add to-do"></button>
   </div>
-  <span class="build-stamp">Cubit Tasker · Build 2026-09-04.1</span>
+  <span class="build-stamp">Cubit Tasker · Build 2026-09-04.2</span>
 </div>
 
 <!-- Units panel -->
@@ -1540,15 +1541,21 @@ function buildTrackBackgroundAndColumns(){
   const gridLines = 'repeating-linear-gradient(to right, var(--line) 0, var(--line) 1px, transparent 1px, transparent '+cw+'px)';
   const layers = [gridLines];
 
-  // Alternating week bands — replaces the day-count number that used to sit in each column
-  // header as the "which week am I looking at" cue. Computed from each column's real calendar
-  // date (Monday-start weeks), so it comes out right whether weekends render as their own
-  // columns or are skipped entirely. Same computeWeekParity() also drives the matching shading
-  // in the sticky day-ruler header (see renderDayHeader) so the bands line up visually.
+  // Every other DAY column gets a faint tint, on top of which every other WEEK gets a stronger
+  // one — two separate cues (per-day zebra-striping, plus a clearer week-to-week grouping) so a
+  // day boundary is visible at a glance and a week's boundary reads even more clearly than that.
+  // Same computeWeekParity() also drives the matching shading in the sticky day-ruler header
+  // (see renderDayHeader) so all of this lines up visually between the two.
+  const dayStops = [];
+  cols.forEach((c,i)=>{
+    if(i % 2 === 1) dayStops.push('rgba(21,24,27,.03) '+(i*cw)+'px, rgba(21,24,27,.03) '+((i+1)*cw)+'px');
+  });
+  if(dayStops.length) layers.push('linear-gradient(to right, '+dayStops.join(', ')+')');
+
   const weekOdd = computeWeekParity(cols);
   const weekStops = [];
   cols.forEach((c,i)=>{
-    if(weekOdd[i]) weekStops.push('rgba(44,95,138,.05) '+(i*cw)+'px, rgba(44,95,138,.05) '+((i+1)*cw)+'px');
+    if(weekOdd[i]) weekStops.push('rgba(44,95,138,.1) '+(i*cw)+'px, rgba(44,95,138,.1) '+((i+1)*cw)+'px');
   });
   if(weekStops.length) layers.push('linear-gradient(to right, '+weekStops.join(', ')+')');
 
@@ -1569,7 +1576,11 @@ function renderDayHeader(cols,cw){
   let html = '';
   const weekOdd = computeWeekParity(cols);
   cols.forEach((c,i)=>{
-    html += '<div class="daycol'+(c.weekend?' weekend':'')+(weekOdd[i]?' wk-odd':'')+'" style="width:'+cw+'px">'
+    const cls = ['daycol'];
+    if(i%2===1) cls.push('day-odd');
+    if(weekOdd[i]) cls.push('wk-odd');
+    if(c.weekend) cls.push('weekend');
+    html += '<div class="'+cls.join(' ')+'" style="width:'+cw+'px">'
           + '<div class="dd">'+fmtDateShort(c.date)+'</div>'
           + '</div>';
   });
