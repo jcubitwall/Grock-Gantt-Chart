@@ -203,10 +203,9 @@
   .project-row .p-actions button.primary{background:var(--accent);color:#fff;border-color:var(--accent);}
   .project-row.archived{opacity:.6;}
   .archived-pill{font-family:var(--font-mono);font-size:9.5px;text-transform:uppercase;background:#eeece3;color:var(--muted);padding:2px 7px;border-radius:8px;}
-  .project-row .p-pie-wrap{flex-shrink:0;width:44px;height:44px;cursor:pointer;}
-  .project-row .p-pie-wrap svg{width:44px;height:44px;display:block;}
-  .project-row .p-pie-wrap:hover{opacity:.82;}
-  .p-pie-empty{width:44px;height:44px;border-radius:50%;border:2px dashed var(--line-strong);flex-shrink:0;}
+  .p-progress{position:relative;height:18px;border-radius:9px;background:#2f6fb5;overflow:hidden;margin-top:6px;}
+  .p-progress-fill{position:absolute;left:0;top:0;bottom:0;background:#2e9e4f;border-radius:9px;transition:width .3s;}
+  .p-progress-label{position:absolute;left:0;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.45);}
   .pie-legend{margin-top:18px;text-align:left;display:flex;flex-direction:column;gap:7px;}
   .pie-legend-row{display:flex;align-items:center;gap:8px;font-size:13.5px;}
   .pie-legend-swatch{width:12px;height:12px;border-radius:3px;flex-shrink:0;}
@@ -705,6 +704,7 @@
           <button id="btnUnits">🏗 Units &amp; Generate</button>
           <button id="btnTemplates">📋 Task Templates</button>
           <button id="btnMaterialsCatalog">📦 Materials Catalog</button>
+          <button id="btnPieChart">🥧 Task Time Pie Chart</button>
           <button id="btnMaterialsReport">🧾 Materials Report (CSV)</button>
           <button id="btnProjectLayouts">📐 Project Layouts</button>
           <button id="btnUsers">👥 Users</button>
@@ -716,7 +716,7 @@
   </div>
   <div class="bb-footline">
     <span id="syncStatus" style="font-family:var(--font-mono);color:#8fae4a;">✓ Saved</span>
-    <span class="build-stamp">Cubit Tasker · Build 2026-09-06.17</span>
+    <span class="build-stamp">Cubit Tasker · Build 2026-09-06.18</span>
   </div>
 </div>
 
@@ -4513,6 +4513,11 @@ function initTopToolbar(){
     save();
     renderMaterialsCatalogPanel();
   });
+  document.getElementById('btnPieChart').addEventListener('click', ()=>{
+    adminList.classList.remove('open');
+    const proj = projectsCache.find(pr=>pr.id===currentProjectId) || {id:currentProjectId, name:currentProjectName||'Project'};
+    openCategoryPieModal(proj, {startDate:state.startDate, skipWeekends:state.skipWeekends, rows:state.rows});
+  });
   document.getElementById('btnMaterialsReport').addEventListener('click', ()=>{
     adminList.classList.remove('open');
     exportMaterialsReportCsv();
@@ -5321,6 +5326,15 @@ function buildPieSvg(slices, grandTotal, size){
   });
   return '<svg viewBox="0 0 '+size+' '+size+'">'+path+'</svg>';
 }
+function progressForRows(rows){
+  let done=0,total=0;
+  (rows||[]).forEach(r=>{
+    if(r.source==='header' || r.source==='todo-header' || r.source==='todo') return;
+    if(r.checklist && r.checklist.length){ total+=r.checklist.length; done+=r.checklist.filter(i=>i.done).length; }
+    else { total+=1; done+=r.done?1:0; }
+  });
+  return total ? Math.round(done/total*100) : 0;
+}
 function openCategoryPieModal(project, board){
   const {slices, grandTotal} = computeTaskNameStats(board.rows);
   const durationLabel = projectDurationLabel(project, board);
@@ -5399,30 +5413,20 @@ function renderProjectsList(){
     const board = projectBoardsCache[p.id];
     const stats = board ? computeTaskNameStats(board.rows) : null;
     const durationLabel = board ? projectDurationLabel(p, board) : '';
-    const pieHtml = (stats && stats.grandTotal)
-      ? '<div class="p-pie-wrap" data-pie="'+p.id+'" title="Task time breakdown">'+buildPieSvg(stats.slices, stats.grandTotal, 44)+'</div>'
-      : '<div class="p-pie-empty" title="No scheduled tasks yet"></div>';
+    const pct = board ? progressForRows(board.rows) : 0;
+    const progressHtml = '<div class="p-progress" title="'+pct+'% complete"><div class="p-progress-fill" style="width:'+pct+'%"></div><div class="p-progress-label">'+pct+'%</div></div>';
     const metaLine = 'Created '+created+(durationLabel ? ' · '+durationLabel : '');
     return '<div class="project-row'+(p.archived?' archived':'')+'">'
-      + pieHtml
       + '<div class="p-info" data-open="'+p.id+'" data-name="'+escapeHtml(p.name)+'">'
       +   '<div class="p-name">'+escapeHtml(p.name)+' '+archivedPill+'</div>'
       +   '<div class="p-meta">'+metaLine+'</div>'
+      +   progressHtml
       + '</div>'
       + '<div class="p-actions"><div class="p-actions-stack">'+renameBtn+docLinkBtn+'</div>'+archiveBtn+deleteBtn+'</div>'
       + '</div>';
   }).join('');
   list.querySelectorAll('[data-open]').forEach(el=>{
     el.addEventListener('click', ()=> openProject(el.getAttribute('data-open'), el.getAttribute('data-name')));
-  });
-  list.querySelectorAll('[data-pie]').forEach(el=>{
-    el.addEventListener('click', e=>{
-      e.stopPropagation();
-      const id = el.getAttribute('data-pie');
-      const proj = projectsCache.find(pr=>pr.id===id);
-      const board = projectBoardsCache[id];
-      if(proj && board) openCategoryPieModal(proj, board);
-    });
   });
   list.querySelectorAll('[data-act="rename"]').forEach(btn=>{
     btn.addEventListener('click', async e=>{
