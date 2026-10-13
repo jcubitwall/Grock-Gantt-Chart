@@ -33,4 +33,4 @@ Department-scoped access matrix for the hub; Edge Function for full user deletio
 
 ## Where we left off
 - 2026-10-13: Build 2026-09-06.18 pushed — completion % pill on Projects list; pie chart moved into gear menu. No Supabase migration needed.
-- Pending: Johnny wants to rename this repo to something like "cubittasker" (note: renaming changes the GitHub Pages URL and breaks bookmarks/home-screen icons; Supabase Auth Site URL / redirect URLs may need updating).
+- DECISION: keep repo name `Grock-Gantt-Chart` as is. Renaming would change the Pages URL and break every team phone's bookmark/home-screen icon. Only revisit together with a custom domain (e.g. via Cloudflare) so the public address stays stable.
